@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+require "bundler/setup"
+
+missing = []
+puts "name\tversion\tlicenses\thomepage"
+Bundler.load.specs.sort_by(&:name).each do |spec|
+  licenses = Array(spec.licenses).map(&:strip).reject(&:empty?)
+  missing << spec.name if licenses.empty?
+  puts [spec.name, spec.version, licenses.join(","), spec.homepage].join("\t")
+end
+
+unless missing.empty?
+  warn "Dependencies without declared license metadata: #{missing.join(', ')}"
+  exit 1
+end

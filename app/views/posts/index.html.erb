@@ -1,0 +1,17 @@
+<% content_for :title, params[:mine] == "1" ? "My articles — RailsProject2" : "Latest articles — RailsProject2" %>
+<h1><%= params[:mine] == "1" ? "My articles" : "Latest articles" %></h1>
+
+<% if @posts.empty? %>
+  <p>No articles are available yet.</p>
+<% else %>
+  <div class="article-list">
+    <% @posts.each do |post| %>
+      <article>
+        <h2><%= link_to post.title, post_path(post) %></h2>
+        <p class="byline">By <%= post.author.display_name %><% if post.published_at %> · <time datetime="<%= post.published_at.iso8601 %>"><%= l(post.published_at.to_date, format: :long) %></time><% end %></p>
+        <p><%= post.excerpt.presence || truncate(post.body, length: 220) %></p>
+        <% if params[:mine] == "1" %><p><strong>Status:</strong> <%= post.status.humanize %></p><% end %>
+      </article>
+    <% end %>
+  </div>
+<% end %>

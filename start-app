@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/sh
+set -eu
 
-cd /home/$NITROUS_USERNAME/code/example
-rails server --binding=0.0.0.0 --port=$NITROUS_PREVIEW_PORT
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+exec "$script_dir/bin/start"
