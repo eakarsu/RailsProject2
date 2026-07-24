@@ -4,6 +4,10 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$project_dir"
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
 
 if [ -x /opt/homebrew/opt/ruby/bin/ruby ]; then
   export PATH="/opt/homebrew/opt/ruby/bin:$PATH"
@@ -21,29 +25,33 @@ if ! bundle check >/dev/null 2>&1; then
   exit 1
 fi
 
-runtime_port="${PORT:-3000}"
-if [[ ! "$runtime_port" =~ ^[0-9]+$ ]] || [ "$runtime_port" -lt 1 ] || [ "$runtime_port" -gt 65535 ]; then
-  printf 'PORT must be an integer between 1 and 65535.\n' >&2
-  exit 1
-fi
-export PORT="$runtime_port"
+api_port="${BACKEND_PORT:-${PORT:-3000}}"
+ui_port="${FRONTEND_PORT:-3001}"
+for runtime_port in "$api_port" "$ui_port"; do
+  if [[ ! "$runtime_port" =~ ^[0-9]+$ ]] || [ "$runtime_port" -lt 1 ] || [ "$runtime_port" -gt 65535 ]; then
+    printf 'Runtime ports must be integers between 1 and 65535.\n' >&2
+    exit 1
+  fi
+  if lsof -tiTCP:"$runtime_port" -sTCP:LISTEN >/dev/null 2>&1; then printf 'Port %s is occupied.\n' "$runtime_port" >&2; exit 1; fi
+done
 
-if [ -n "${RAILS_ENV:-}" ]; then
-  runtime_environment="$RAILS_ENV"
-elif [ "${NODE_ENV:-}" = test ]; then
-  runtime_environment=test
-else
-  runtime_environment=development
-fi
+if [ "${NODE_ENV:-development}" = production ]; then runtime_environment=production; else runtime_environment=test; fi
 export RAILS_ENV="$runtime_environment"
 
-if [ "$RAILS_ENV" = test ] && [ "${NODE_ENV:-}" = test ]; then
+case "${MIGRATE_ON_START:-0}" in
+1|true)
   bundle exec rails db:prepare
-  if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
-    BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL" \
-      BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-      bundle exec rails db:seed
-  fi
+  ;;
+esac
+if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+  BOOTSTRAP_ADMIN_EMAIL="$ADMIN_EMAIL" \
+    BOOTSTRAP_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+    bundle exec rails db:seed
 fi
 
-exec ./bin/start
+PORT="$api_port" PIDFILE="/private/tmp/railsproject2-api-$$.pid" ./bin/start & api_pid=$!
+trap 'kill "${api_pid:-}" "${ui_pid:-}" 2>/dev/null || true; wait "${api_pid:-}" "${ui_pid:-}" 2>/dev/null || true' INT TERM EXIT
+for attempt in {1..240}; do curl --max-time 2 -fsS "http://127.0.0.1:$api_port/health" >/dev/null 2>&1 && break; kill -0 "$api_pid" 2>/dev/null||{ wait "$api_pid"||true; printf 'API exited before startup.\n' >&2; exit 1; }; sleep 0.25; done
+curl --max-time 5 -fsS "http://127.0.0.1:$api_port/health" >/dev/null||{ printf 'API did not become ready.\n' >&2; exit 1; }
+PORT="$ui_port" PIDFILE="/private/tmp/railsproject2-ui-$$.pid" ./bin/start & ui_pid=$!
+wait "$api_pid" "$ui_pid"
