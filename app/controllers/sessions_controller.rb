@@ -1,10 +1,5 @@
 class SessionsController < ApplicationController
-  def new
-    return unless params[:demo] == "1" && !Rails.env.production?
-
-    @demo_email = ENV["BOOTSTRAP_ADMIN_EMAIL"].presence || ENV["PROVISION_ADMIN_EMAIL"].presence || ENV["ADMIN_EMAIL"].presence
-    @demo_password = ENV["BOOTSTRAP_ADMIN_PASSWORD"].presence || ENV["PROVISION_ADMIN_PASSWORD"].presence || ENV["ADMIN_PASSWORD"].presence
-  end
+  def new; end
 
   def create
     user = User.find_by(email: params[:email].to_s.downcase.strip)

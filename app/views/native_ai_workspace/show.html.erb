@@ -1,0 +1,77 @@
+<% content_for :title, "AI workspace — RailsProject2" %>
+<section id="native-ai-studio" class="native-vanilla-studio"></section>
+<link rel="stylesheet" href="/NativeAIStudio.css">
+<script src="/NativeAIReport.js"></script>
+<script src="/NativeAIStudio.js"></script>
+<%
+  examples = [
+    {
+      prompt: "Review a proposed correction to a published local transit article. Identify facts that need confirmation, reader impact, and the editor's next steps. Do not draft a final correction notice.",
+      goal: "Prepare an internal fact-check plan before the editor decides whether to issue a correction.",
+      context: "A reader says the article gives an outdated weekend bus schedule; the newsroom has not checked the current timetable.",
+      audience: "Assigning editor and transit reporter",
+      source_summary: "Reader message and the published article are available to the team. The current transit authority timetable is still needed.",
+      constraints: "Treat the reader claim as unverified; cite the official timetable only after a human checks it.",
+      budget: "One reporter hour for initial verification",
+      deadline: "Before the next editorial meeting",
+      tone: "Precise, calm, and non-accusatory",
+      output_format: "Sections for evidence gaps, verification steps, risks, and editor decision"
+    },
+    {
+      prompt: "Plan editorial coverage of a neighborhood council meeting. Propose reporting angles, questions, and a review sequence without claiming that any vote has already occurred.",
+      goal: "Give the team a practical assignment plan for meeting coverage.",
+      context: "The agenda includes a housing proposal and public comment. Attendance and final agenda may change.",
+      audience: "City desk editor and two reporters",
+      source_summary: "The public agenda is the starting point; reporters must confirm the latest version and interview participants directly.",
+      constraints: "Separate agenda items from decisions; avoid predicting the vote or quoting people without an interview.",
+      budget: "Two reporters for one afternoon",
+      deadline: "Assignment plan before the meeting starts",
+      tone: "Clear and neutral",
+      output_format: "Assignment table followed by open questions and review checkpoints"
+    },
+    {
+      prompt: "Evaluate a draft explainer about a school nutrition policy. List claims requiring primary-source checks, possible ambiguity, and what an editor should review before publication.",
+      goal: "Support a detailed pre-publication review of an explanatory article.",
+      context: "A draft describes eligibility, implementation dates, and family impact; the newsroom has not yet verified every policy detail.",
+      audience: "Education reporter, fact checker, and editor",
+      source_summary: "Draft article and policy summary are available internally. The adopted policy text and district response must be checked.",
+      constraints: "Do not infer eligibility or dates; flag missing source text and keep all conclusions provisional.",
+      budget: "Half a day of reporting and editorial review",
+      deadline: "Before the scheduled publication review",
+      tone: "Accessible and careful",
+      output_format: "Claim-check table, unresolved questions, and publication gate checklist"
+    }
+  ]
+  fields = examples.first.keys.map do |key|
+    { key: key.to_s, label: key.to_s.tr('_', ' '), type: "text", required: key == :prompt, presets: examples.map { |example| example.fetch(key) } }
+  end
+  studio_config = {
+    title: "RailsProject2 editorial AI workspace",
+    features: [{
+      id: "native-review", endpoint: "/api/ai/editorial-brief", title: "Editorial operations brief",
+      description: "Examples are illustrative. Confirm actual sources and editorial decisions before using a generated brief.",
+      fields: fields
+    }],
+    resources: [{ key: "briefs", label: "Saved AI briefs", endpoint: "/api/ai/briefs", fields: [] }]
+  }
+%>
+<script>
+  window.NativeWorkflowStudio.mount({
+    element: document.getElementById("native-ai-studio"),
+    config: <%= raw(studio_config.to_json) %>,
+    request: async (path, options = {}) => {
+      const response = await fetch(path, {
+        ...options,
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content,
+          ...options.headers
+        }
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Request failed");
+      return body;
+    }
+  }).setAuthenticated(true);
+</script>
