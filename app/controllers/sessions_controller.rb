@@ -31,10 +31,11 @@ class SessionsController < ApplicationController
   end
 
   def demo_credentials
-    return head :not_found if Rails.env.production?
+    return head :not_found unless ENV["LOCAL_DEMO_AUTH"] == "true"
     email = ENV["BOOTSTRAP_ADMIN_EMAIL"].presence || ENV["PROVISION_ADMIN_EMAIL"].presence || ENV["ADMIN_EMAIL"].presence
     password = ENV["BOOTSTRAP_ADMIN_PASSWORD"].presence || ENV["PROVISION_ADMIN_PASSWORD"].presence || ENV["ADMIN_PASSWORD"].presence
-    return render json: { error: "demo_credentials_unavailable" }, status: :service_unavailable if email.blank? || password.blank?
+    user = User.find_by(email: email.to_s.downcase.strip) if email.present?
+    return render json: { error: "demo_credentials_unavailable" }, status: :service_unavailable unless user&.active? && user.authenticate(password.to_s)
     response.headers["Cache-Control"] = "no-store"
     render json: { email: email, password: password }
   end
